@@ -15,6 +15,7 @@ import type {
   SearchResponse,
   MapClientConfig
 } from './types.ts';
+import { apiFetch } from './lib/api.ts';
 
 export default function App() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -50,27 +51,20 @@ export default function App() {
   const fetchPublicData = async () => {
     try {
       // 1. Fetch Categories
-      const catRes = await fetch('/api/categories');
-      if (catRes.ok) {
-        const catData = await catRes.json();
-        if (catData.success && Array.isArray(catData.categories)) {
-          setCategories(catData.categories);
-        }
+      const { res: catRes, data: catData } = await apiFetch<{ success: boolean; categories: Category[] }>('/api/categories');
+      if (catRes.ok && catData?.success && Array.isArray(catData.categories)) {
+        setCategories(catData.categories);
       }
 
       // 2. Fetch Settings
-      const setRes = await fetch('/api/settings');
-      if (setRes.ok) {
-        const setData = await setRes.json();
-        if (setData.success && setData.settings) {
-          setSettings((prev) => ({ ...prev, ...setData.settings }));
-        }
+      const { res: setRes, data: setData } = await apiFetch<{ success: boolean; settings: Partial<SiteSettings> }>('/api/settings');
+      if (setRes.ok && setData?.success && setData.settings) {
+        setSettings((prev) => ({ ...prev, ...setData.settings }));
       }
 
       // 3. Fetch Map Client Config
-      const mapRes = await fetch('/api/config/maps-config');
-      if (mapRes.ok) {
-        const mapData = await mapRes.json();
+      const { res: mapRes, data: mapData } = await apiFetch<MapClientConfig>('/api/config/maps-config');
+      if (mapRes.ok && mapData) {
         setMapConfig(mapData);
       }
     } catch (err) {
@@ -82,10 +76,9 @@ export default function App() {
     fetchPublicData();
 
     // Check if admin session cookie exists
-    fetch('/api/admin/me')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.user) {
+    apiFetch<{ success: boolean; user?: any }>('/api/admin/me')
+      .then(({ res, data }) => {
+        if (res.ok && data?.success && data.user) {
           setAdminToken('cookie-session');
         }
       })
@@ -106,19 +99,16 @@ export default function App() {
     setActivePlaceId(null);
 
     try {
-      const res = await fetch('/api/search', {
+      const { res, data, error } = await apiFetch<SearchResponse>('/api/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
       });
 
-      const data: SearchResponse = await res.json();
-
-      if (!res.ok || !data.success) {
-        if (data.missingApiKey) {
+      if (!res.ok || !data?.success) {
+        if (data?.missingApiKey) {
           setMissingApiKeyError(true);
         }
-        setSearchError(data.error || '搜尋失敗，請確認後再試。');
+        setSearchError(error || data?.error || '搜尋失敗，請確認後再試。');
       } else {
         setOrigin(data.origin);
         setPlaces(data.results || []);
@@ -128,7 +118,7 @@ export default function App() {
         }
       }
     } catch (err: any) {
-      setSearchError('伺服器連線異常，請稍後再試。');
+      setSearchError(err?.message || '伺服器連線異常，請稍後再試。');
     } finally {
       setIsSearching(false);
     }
@@ -136,7 +126,7 @@ export default function App() {
 
   const handleAdminLogout = async () => {
     try {
-      await fetch('/api/admin/logout', {
+      await apiFetch('/api/admin/logout', {
         method: 'POST',
         headers: adminToken ? { Authorization: `Bearer ${adminToken}` } : {}
       });

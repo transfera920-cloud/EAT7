@@ -18,6 +18,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import type { Category, SiteSettings } from '../types.ts';
+import { apiFetch } from '../lib/api.ts';
 
 interface AdminPanelProps {
   isOpen: boolean;
@@ -76,14 +77,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const fetchAdminCategories = async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/admin/categories', {
+      const { res, data } = await apiFetch<{ success: boolean; categories: Category[] }>('/api/admin/categories', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          setAdminCategories(data.categories);
-        }
+      if (res.ok && data?.success && Array.isArray(data.categories)) {
+        setAdminCategories(data.categories);
       }
     } catch (err) {
       console.error('Failed to load admin categories', err);
@@ -105,21 +103,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setLoginLoading(true);
 
     try {
-      const res = await fetch('/api/admin/login', {
+      const { res, data, error } = await apiFetch<{ success: boolean; token: string; error?: string }>('/api/admin/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setLoginError(data.error || '登入失敗，請檢查帳號密碼');
+
+      if (!res.ok || !data?.success) {
+        setLoginError(error || data?.error || '登入失敗，請檢查帳號密碼');
       } else {
         onLoginSuccess(data.token);
         setUsername('');
         setPassword('');
       }
-    } catch {
-      setLoginError('網路或伺服器連線失敗');
+    } catch (err: any) {
+      setLoginError(err?.message || '網路或伺服器連線失敗');
     } finally {
       setLoginLoading(false);
     }
@@ -131,10 +128,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     if (!newCategoryName.trim()) return;
 
     try {
-      const res = await fetch('/api/admin/categories', {
+      const { res, error } = await apiFetch('/api/admin/categories', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
@@ -151,6 +147,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         await fetchAdminCategories();
         await onRefreshData();
         setTimeout(() => setCatActionMsg(null), 3000);
+      } else {
+        setCatActionMsg(error || '新增分類失敗');
       }
     } catch {
       setCatActionMsg('新增分類失敗');
@@ -160,10 +158,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Update Category
   const handleUpdateCategory = async (cat: Category) => {
     try {
-      const res = await fetch(`/api/admin/categories/${cat.id}`, {
+      const { res, error } = await apiFetch(`/api/admin/categories/${cat.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
@@ -178,6 +175,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         await fetchAdminCategories();
         await onRefreshData();
         setTimeout(() => setCatActionMsg(null), 3000);
+      } else {
+        setCatActionMsg(error || '更新分類失敗');
       }
     } catch {
       setCatActionMsg('更新分類失敗');
@@ -188,7 +187,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleDeleteCategory = async (id: number) => {
     if (!window.confirm('確定要刪除此分類嗎？此動作將無法復原。')) return;
     try {
-      const res = await fetch(`/api/admin/categories/${id}`, {
+      const { res, error } = await apiFetch(`/api/admin/categories/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -197,6 +196,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         await fetchAdminCategories();
         await onRefreshData();
         setTimeout(() => setCatActionMsg(null), 3000);
+      } else {
+        setCatActionMsg(error || '刪除分類失敗');
       }
     } catch {
       setCatActionMsg('刪除分類失敗');
@@ -226,10 +227,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setSettingsSavedMsg(null);
 
     try {
-      const res = await fetch('/api/admin/settings', {
+      const { res, error } = await apiFetch('/api/admin/settings', {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify(formSettings)
@@ -239,7 +239,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         await onRefreshData();
         setTimeout(() => setSettingsSavedMsg(null), 4000);
       } else {
-        setSettingsSavedMsg('更新設定失敗');
+        setSettingsSavedMsg(error || '更新設定失敗');
       }
     } catch {
       setSettingsSavedMsg('更新設定失敗');
@@ -263,25 +263,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
 
     try {
-      const res = await fetch('/api/admin/change-password', {
+      const { res, data, error } = await apiFetch<{ success: boolean; error?: string }>('/api/admin/change-password', {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({ currentPassword, newPassword })
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
+      if (res.ok && data?.success) {
         setPwdMsg({ text: '密碼已成功更新！下次登入請使用新密碼。', isError: false });
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
       } else {
-        setPwdMsg({ text: data.error || '密碼更新失敗', isError: true });
+        setPwdMsg({ text: error || data?.error || '密碼更新失敗', isError: true });
       }
-    } catch {
-      setPwdMsg({ text: '變更密碼請求失敗', isError: true });
+    } catch (err: any) {
+      setPwdMsg({ text: err?.message || '變更密碼請求失敗', isError: true });
     }
   };
 
