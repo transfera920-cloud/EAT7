@@ -1,0 +1,6 @@
+{
+  "name": "下山慶功宴搜尋系統",
+  "description": "登山下山後，以登山口為起點，透過 Google Maps 搜尋指定車程時間內的火鍋、麵店、餐廳等慶功宴美食店家。",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
